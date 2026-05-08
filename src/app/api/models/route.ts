@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, login_id, password, color } = parsed.data;
-    const email = `${login_id}@discovery-model.internal`;
+    const email = `${login_id}@discovery-company.internal`;
 
     const adminSupabase = await createAdminClient();
 
