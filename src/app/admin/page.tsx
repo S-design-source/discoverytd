@@ -25,6 +25,12 @@ export default function AdminPage() {
           >
             업체 관리
           </Link>
+          <Link
+            href="/admin/models"
+            className="text-sm text-pink-600 hover:text-pink-800 font-medium"
+          >
+            모델 관리
+          </Link>
         </div>
         <button
           onClick={handleLogout}

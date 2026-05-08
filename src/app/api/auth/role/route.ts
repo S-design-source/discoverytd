@@ -25,7 +25,17 @@ export async function GET() {
       companyName = company?.name;
     }
 
-    return NextResponse.json({ role: profile.role, companyName });
+    let modelName: string | undefined;
+    if (profile.role === "model") {
+      const { data: model } = await supabase
+        .from("models")
+        .select("name")
+        .eq("id", user.id)
+        .single();
+      modelName = model?.name;
+    }
+
+    return NextResponse.json({ role: profile.role, companyName, modelName });
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

@@ -43,7 +43,8 @@ export async function middleware(request: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .single();
-    const dest = profile?.role === "admin" ? "/admin" : "/company";
+    const role = profile?.role;
+    const dest = role === "admin" ? "/admin" : role === "model" ? "/model" : "/company";
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
@@ -55,7 +56,7 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
     if (profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/company", request.url));
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
@@ -67,7 +68,19 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
     if (profile?.role !== "company") {
-      return NextResponse.redirect(new URL("/admin", request.url));
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
+  // /model/* 접근 시 model role 확인
+  if (pathname.startsWith("/model")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role !== "model") {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
