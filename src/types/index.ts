@@ -1,29 +1,48 @@
-export type BookingStatus = "pending" | "confirmed" | "cancelled";
+export type UserRole = "admin" | "company";
 
-export interface Booking {
+export interface Profile {
   id: string;
+  role: UserRole;
   created_at: string;
-  date: string;
-  time_slot: string;
-  name: string;
-  phone: string;
-  email?: string;
-  party_size: number;
-  notes?: string;
-  status: BookingStatus;
 }
 
-export interface TimeSlot {
-  time: string;
-  available: boolean;
+export interface Company {
+  id: string;
+  name: string;
+  company_code: string;
+  color: string;
+  is_active: boolean;
+  created_at: string;
 }
 
-export interface BookingFormData {
+export interface SampleSchedule {
+  id: string;
+  company_id: string;
   date: string;
-  time_slot: string;
+  sample_code: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleWithCompany extends SampleSchedule {
+  companies: {
+    name: string;
+    color: string;
+    company_code: string;
+  };
+}
+
+export interface CompanyCreateInput {
   name: string;
-  phone: string;
-  email?: string;
-  party_size: number;
-  notes?: string;
+  company_code: string;
+  login_id: string;
+  password: string;
+  color?: string;
+}
+
+export interface ScheduleFormData {
+  date: string;
+  sample_code: string;
+  content: string;
 }

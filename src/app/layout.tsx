@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My Booking",
-  description: "간편하게 예약하세요",
+  title: "Discovery 샘플접수 관리",
+  description: "Discovery 하청업체 샘플접수 스케줄 관리 시스템",
 };
 
 export default function RootLayout({

@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
-import { z } from "zod";
-
-const updateSchema = z.object({
-  status: z.enum(["pending", "confirmed", "cancelled"]),
-});
+import { createClient } from "@/lib/supabase/server";
+import { scheduleSchema } from "@/lib/validations/schedule";
 
 export async function PATCH(
   req: NextRequest,
@@ -12,17 +8,19 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = await req.json();
-    const parsed = updateSchema.safeParse(body);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const body = await req.json();
+    const parsed = scheduleSchema.partial().safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: "유효하지 않은 상태값입니다." }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
-    const supabase = await createAdminClient();
     const { error } = await supabase
-      .from("bookings")
-      .update({ status: parsed.data.status })
+      .from("sample_schedules")
+      .update(parsed.data)
       .eq("id", id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,9 +37,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createAdminClient();
-    const { error } = await supabase.from("bookings").delete().eq("id", id);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { error } = await supabase
+      .from("sample_schedules")
+      .delete()
+      .eq("id", id);
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
