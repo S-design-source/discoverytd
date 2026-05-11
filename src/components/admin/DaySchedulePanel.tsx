@@ -8,6 +8,14 @@ interface Props {
   modelSchedules: ModelScheduleWithModel[];
 }
 
+function getSampleCodeColor(code: string): string {
+  const prefix = code.slice(0, 2).toUpperCase();
+  if (prefix === "DX") return "#16a34a";
+  if (prefix === "DM") return "#2563eb";
+  if (prefix === "DW") return "#dc2626";
+  return "#6366f1";
+}
+
 export default function DaySchedulePanel({ date, schedules, modelSchedules }: Props) {
   const parsed = parseISO(date);
   const label = format(parsed, "M월 d일 (EEE)", { locale: ko });
@@ -33,7 +41,12 @@ export default function DaySchedulePanel({ date, schedules, modelSchedules }: Pr
                 <p className="text-xs font-bold text-gray-500 mb-0.5 truncate">
                   {s.companies?.name ?? "알 수 없음"}
                 </p>
-                <p className="text-sm font-semibold text-gray-900 mb-0.5 truncate">{s.sample_code}</p>
+                <p
+                  className="text-sm font-semibold mb-0.5 truncate"
+                  style={{ color: getSampleCodeColor(s.sample_code) }}
+                >
+                  {s.sample_code}
+                </p>
                 <p className="text-xs text-gray-500 line-clamp-2">{s.content}</p>
               </div>
             </div>

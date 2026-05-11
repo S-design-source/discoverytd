@@ -13,6 +13,14 @@ import DaySchedulePanel from "./DaySchedulePanel";
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 type FilterType = "all" | "sample" | "model";
 
+function getSampleCodeColor(code: string): string {
+  const prefix = code.slice(0, 2).toUpperCase();
+  if (prefix === "DX") return "#16a34a";
+  if (prefix === "DM") return "#2563eb";
+  if (prefix === "DW") return "#dc2626";
+  return "#6366f1";
+}
+
 export default function CalendarView() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -125,7 +133,7 @@ export default function CalendarView() {
             const samples = filter !== "model" ? (sampleByDate[dateStr] ?? []) : [];
             const models = filter !== "sample" ? (modelByDate[dateStr] ?? []) : [];
             const allDots = [
-              ...samples.map((s) => ({ id: s.id, color: s.companies?.color ?? "#6366f1" })),
+              ...samples.map((s) => ({ id: s.id, color: getSampleCodeColor(s.sample_code) })),
               ...models.map((m) => ({ id: m.id, color: m.models?.color ?? "#ec4899" })),
             ];
             const isSelected = selectedDate === dateStr;
