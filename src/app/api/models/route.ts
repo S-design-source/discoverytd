@@ -22,7 +22,15 @@ export async function GET() {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json(data ?? []);
+    const { data: { users } } = await adminSupabase.auth.admin.listUsers({ perPage: 1000 });
+    const emailMap = new Map(users.map((u) => [u.id, u.email ?? ""]));
+
+    const result = (data ?? []).map((m) => ({
+      ...m,
+      login_id: emailMap.get(m.id)?.replace("@discovery-company.internal", "") ?? "",
+    }));
+
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

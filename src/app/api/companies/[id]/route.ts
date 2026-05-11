@@ -19,12 +19,23 @@ export async function PATCH(
 
     const body = await req.json();
     const adminSupabase = await createAdminClient();
-    const { error } = await adminSupabase
-      .from("companies")
-      .update({ is_active: body.is_active })
-      .eq("id", id);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (body.login_id !== undefined || body.password !== undefined) {
+      const authUpdates: { email?: string; password?: string } = {};
+      if (body.login_id) authUpdates.email = `${body.login_id}@discovery-company.internal`;
+      if (body.password) authUpdates.password = body.password;
+
+      const { error: authError } = await adminSupabase.auth.admin.updateUserById(id, authUpdates);
+      if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
+    }
+
+    if (body.is_active !== undefined) {
+      const { error } = await adminSupabase
+        .from("companies")
+        .update({ is_active: body.is_active })
+        .eq("id", id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch {

@@ -125,7 +125,15 @@ export default function AdminModelsPage() {
           {loading ? (
             <p className="text-center text-sm text-gray-400 py-8">로딩 중...</p>
           ) : (
-            <ModelTable models={models} onToggle={handleToggle} />
+            <ModelTable
+              models={models}
+              onToggle={handleToggle}
+              onCredentialUpdated={() =>
+                fetch("/api/models")
+                  .then((r) => r.json())
+                  .then((data) => setModels(Array.isArray(data) ? data : []))
+              }
+            />
           )}
         </div>
       </main>

@@ -130,7 +130,11 @@ export default function CompaniesPage() {
           {loading ? (
             <p className="text-center text-sm text-gray-400 py-8">로딩 중...</p>
           ) : (
-            <CompanyTable companies={companies} onToggleActive={handleToggleActive} />
+            <CompanyTable
+              companies={companies}
+              onToggleActive={handleToggleActive}
+              onCredentialUpdated={fetchCompanies}
+            />
           )}
         </div>
       </main>

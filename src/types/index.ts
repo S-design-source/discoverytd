@@ -13,6 +13,7 @@ export interface Company {
   color: string;
   is_active: boolean;
   created_at: string;
+  login_id?: string;
 }
 
 export interface SampleSchedule {
@@ -53,6 +54,7 @@ export interface Model {
   color: string;
   is_active: boolean;
   created_at: string;
+  login_id?: string;
 }
 
 export interface ModelSchedule {
