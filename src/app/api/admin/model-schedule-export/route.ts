@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 function calcHours(start: string, end: string): number {
-  const [sh, sm] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
-  const minutes = (eh * 60 + em) - (sh * 60 + sm);
-  return Math.round((minutes / 60) * 100) / 100;
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const s = toMin(start);
+  const e = toMin(end);
+  const lunchOverlap = Math.max(0, Math.min(e, 780) - Math.max(s, 720)); // 12:00~13:00 공제
+  return Math.round(((e - s - lunchOverlap) / 60) * 100) / 100;
 }
 
 export async function GET(req: NextRequest) {
