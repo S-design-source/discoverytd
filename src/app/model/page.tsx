@@ -14,6 +14,23 @@ import { ModelSchedule } from "@/types";
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const MODEL_DOT_COLOR = "#ec4899";
 
+const TIME_OPTIONS: string[] = [];
+for (let h = 0; h <= 24; h++) {
+  for (let m = 0; m < 60; m += 30) {
+    if (h === 24 && m > 0) break;
+    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+}
+
+function calcNetHours(start: string, end: string): { hours: number; lunchDeducted: number } | null {
+  if (!start || !end) return null;
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const s = toMin(start), e = toMin(end);
+  if (e <= s) return null;
+  const lunchOverlap = Math.max(0, Math.min(e, 780) - Math.max(s, 720));
+  return { hours: (e - s - lunchOverlap) / 60, lunchDeducted: lunchOverlap / 60 };
+}
+
 type ModalType = "create" | "edit" | null;
 
 interface EditTarget {
@@ -341,23 +358,46 @@ export default function ModelPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">시작 시간</label>
-                  <input
-                    type="time"
+                  <select
                     value={form.start_time}
                     onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
+                  >
+                    <option value="">선택</option>
+                    {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">종료 시간</label>
-                  <input
-                    type="time"
+                  <select
                     value={form.end_time}
                     onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white"
+                  >
+                    <option value="">선택</option>
+                    {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
               </div>
+              {(() => {
+                const net = calcNetHours(form.start_time, form.end_time);
+                if (!net) return null;
+                return (
+                  <div className={`rounded-lg px-3 py-2 text-xs font-medium flex items-center gap-1.5 ${
+                    net.lunchDeducted > 0
+                      ? "bg-orange-50 text-orange-700 border border-orange-200"
+                      : "bg-blue-50 text-blue-700 border border-blue-200"
+                  }`}>
+                    <span>⏱</span>
+                    <span>
+                      실근무: <strong>{net.hours % 1 === 0 ? net.hours : net.hours.toFixed(1)}시간</strong>
+                      {net.lunchDeducted > 0 && (
+                        <span className="ml-1 opacity-75">(점심 {net.lunchDeducted % 1 === 0 ? net.lunchDeducted : net.lunchDeducted.toFixed(1)}시간 공제)</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   내용 <span className="text-gray-400 font-normal">(선택)</span>
