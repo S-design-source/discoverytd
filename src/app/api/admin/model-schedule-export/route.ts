@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await adminSupabase
       .from("model_schedules")
-      .select("date, start_time, end_time, models(name)")
+      .select("date, start_time, end_time, models(name, hourly_rate)")
       .gte("date", from)
       .lte("date", to)
       .order("date", { ascending: true })
@@ -40,13 +40,35 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const rows = (data ?? []).map((s) => ({
-      modelName: (s.models as unknown as { name: string } | null)?.name ?? "알 수 없음",
-      date: s.date,
-      hours: calcHours(s.start_time, s.end_time),
-    }));
+    // 모델별 그룹핑
+    const fromDate = new Date(from);
+    const year = fromDate.getFullYear();
+    const month = fromDate.getMonth() + 1;
 
-    return NextResponse.json(rows);
+    const modelMap = new Map<string, {
+      name: string;
+      hourly_rate: number | null;
+      records: { date: string; day: number; hours: number }[];
+    }>();
+
+    for (const s of data ?? []) {
+      const model = s.models as unknown as { name: string; hourly_rate: number | null } | null;
+      const name = model?.name ?? "알 수 없음";
+      const hourly_rate = model?.hourly_rate ?? null;
+      const hours = calcHours(s.start_time, s.end_time);
+      const day = new Date(s.date).getDate();
+
+      if (!modelMap.has(name)) {
+        modelMap.set(name, { name, hourly_rate, records: [] });
+      }
+      modelMap.get(name)!.records.push({ date: s.date, day, hours });
+    }
+
+    return NextResponse.json({
+      year,
+      month,
+      models: Array.from(modelMap.values()),
+    });
   } catch {
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

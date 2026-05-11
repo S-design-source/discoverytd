@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import ModelTable from "@/components/admin/ModelTable";
 import { Model } from "@/types";
 import Link from "next/link";
-import * as XLSX from "xlsx";
+import { generateFittingExcel } from "@/lib/generateFittingExcel";
 
 export default function AdminModelsPage() {
   const [models, setModels] = useState<Model[]>([]);
@@ -72,6 +72,14 @@ export default function AdminModelsPage() {
       return;
     }
 
+    // 같은 달인지 검증
+    const fromMonth = exportRange.from.slice(0, 7);
+    const toMonth = exportRange.to.slice(0, 7);
+    if (fromMonth !== toMonth) {
+      setExportError("시작일과 종료일은 같은 달이어야 합니다.");
+      return;
+    }
+
     setExporting(true);
     setExportError("");
 
@@ -86,24 +94,12 @@ export default function AdminModelsPage() {
         return;
       }
 
-      if (!Array.isArray(data) || data.length === 0) {
+      if (!data.models || data.models.length === 0) {
         setExportError("해당 기간에 피팅 데이터가 없습니다.");
         return;
       }
 
-      const rows = data.map((r: { modelName: string; date: string; hours: number }) => ({
-        "모델이름": r.modelName,
-        "근무일자": r.date,
-        "소요시간(h)": r.hours,
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "피팅데이터");
-
-      const fromStr = exportRange.from.replace(/-/g, "");
-      const toStr = exportRange.to.replace(/-/g, "");
-      XLSX.writeFile(wb, `모델피팅_${fromStr}~${toStr}.xlsx`);
+      generateFittingExcel(data);
 
       setShowExportModal(false);
       setExportRange({ from: "", to: "" });
@@ -211,7 +207,7 @@ export default function AdminModelsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h3 className="font-bold text-base text-gray-900 mb-1">피팅 데이터 내보내기</h3>
-            <p className="text-xs text-gray-400 mb-5">모델이름 · 근무일자 · 소요시간(h) 형식의 엑셀 파일을 다운로드합니다.</p>
+            <p className="text-xs text-gray-400 mb-5">피팅 업무 확인서 양식으로 다운로드합니다. 시작일과 종료일은 같은 달이어야 합니다.</p>
 
             {exportError && (
               <div className="mb-4 bg-red-50 text-red-600 text-xs rounded-lg p-3">{exportError}</div>
