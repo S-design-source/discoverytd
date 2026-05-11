@@ -11,13 +11,17 @@ interface Props {
 
 export default function ModelTable({ models, onToggle, onCredentialUpdated }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ login_id: "", password: "" });
+  const [editForm, setEditForm] = useState({ login_id: "", password: "", hourly_rate: "" });
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   const openEdit = (model: Model) => {
     setEditingId(model.id);
-    setEditForm({ login_id: model.login_id ?? "", password: "" });
+    setEditForm({
+      login_id: model.login_id ?? "",
+      password: "",
+      hourly_rate: model.hourly_rate != null ? String(model.hourly_rate) : "",
+    });
     setEditError("");
   };
 
@@ -36,12 +40,17 @@ export default function ModelTable({ models, onToggle, onCredentialUpdated }: Pr
       setEditError("비밀번호는 8자 이상이어야 합니다.");
       return;
     }
+    if (editForm.hourly_rate && isNaN(Number(editForm.hourly_rate))) {
+      setEditError("시급은 숫자로 입력해주세요.");
+      return;
+    }
 
     setEditSaving(true);
     setEditError("");
 
-    const body: Record<string, string> = { login_id: editForm.login_id.trim() };
+    const body: Record<string, string | number | null> = { login_id: editForm.login_id.trim() };
     if (editForm.password) body.password = editForm.password;
+    body.hourly_rate = editForm.hourly_rate ? Number(editForm.hourly_rate) : null;
 
     const res = await fetch(`/api/models/${editingId}`, {
       method: "PATCH",
@@ -78,6 +87,11 @@ export default function ModelTable({ models, onToggle, onCredentialUpdated }: Pr
                 <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">
                   {m.login_id || "—"}
                 </p>
+                {m.hourly_rate != null && (
+                  <p className="text-xs text-pink-500 mt-0.5 font-medium">
+                    ₩{m.hourly_rate.toLocaleString()}/h
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -136,6 +150,19 @@ export default function ModelTable({ models, onToggle, onCredentialUpdated }: Pr
                   onChange={(e) => setEditForm((p) => ({ ...p, password: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
                   placeholder="8자 이상"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  시급 (원) <span className="text-gray-400 font-normal">(선택)</span>
+                </label>
+                <input
+                  type="number"
+                  value={editForm.hourly_rate}
+                  onChange={(e) => setEditForm((p) => ({ ...p, hourly_rate: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  placeholder="예: 15000"
+                  min="0"
                 />
               </div>
             </div>

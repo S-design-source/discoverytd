@@ -26,10 +26,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
-    if (body.is_active !== undefined) {
+    const dbUpdates: Record<string, unknown> = {};
+    if (body.is_active !== undefined) dbUpdates.is_active = body.is_active;
+    if (body.hourly_rate !== undefined) dbUpdates.hourly_rate = body.hourly_rate;
+
+    if (Object.keys(dbUpdates).length > 0) {
       const { error } = await adminSupabase
         .from("models")
-        .update({ is_active: body.is_active })
+        .update(dbUpdates)
         .eq("id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }

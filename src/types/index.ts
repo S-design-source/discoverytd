@@ -55,6 +55,7 @@ export interface Model {
   is_active: boolean;
   created_at: string;
   login_id?: string;
+  hourly_rate?: number | null;
 }
 
 export interface ModelSchedule {
