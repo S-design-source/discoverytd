@@ -1,4 +1,5 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { TEMPLATE_B64 } from "./template_b64";
 
 interface FittingRecord {
   date: string;
@@ -18,114 +19,178 @@ interface ExportData {
   models: ModelData[];
 }
 
-function fmtDate(month: number, day: number): string {
-  return `${month}/${day}`;
+const FITTINGS_PER_HOUR = 20;
+
+// 템플릿에서 알려진 병합 셀 목록
+const MODEL_SHEET_MERGES = [
+  "A3:A4", "D3:D4", "E3:F3",
+  "A28:B28", "A29:B29", "A30:B30",
+  "E28:E30", "F28:F30",
+];
+
+async function cloneTemplateSheet(
+  tmpl: ExcelJS.Worksheet,
+  dst: ExcelJS.Worksheet
+): Promise<void> {
+  // 열 너비 복사
+  tmpl.columns.forEach((col, idx) => {
+    if (col.width) dst.getColumn(idx + 1).width = col.width;
+  });
+
+  // 행 높이 + 셀 스타일 복사 (값은 복사 안 함)
+  for (let r = 1; r <= 30; r++) {
+    const srcRow = tmpl.getRow(r);
+    const dstRow = dst.getRow(r);
+    if (srcRow.height) dstRow.height = srcRow.height;
+
+    for (let col = 1; col <= 6; col++) {
+      const src = srcRow.getCell(col);
+      const dst2 = dstRow.getCell(col);
+      const s = src.style;
+      if (s?.fill) dst2.fill = JSON.parse(JSON.stringify(s.fill));
+      if (s?.border) dst2.border = JSON.parse(JSON.stringify(s.border));
+      if (s?.font) dst2.font = JSON.parse(JSON.stringify(s.font));
+      if (s?.alignment) dst2.alignment = JSON.parse(JSON.stringify(s.alignment));
+      if (s?.numFmt) dst2.numFmt = s.numFmt;
+    }
+  }
+
+  // 병합 셀 적용
+  MODEL_SHEET_MERGES.forEach((range) => {
+    try { dst.mergeCells(range); } catch { /* 이미 병합된 경우 무시 */ }
+  });
 }
 
-export function generateFittingExcel(data: ExportData): void {
+function fillModelData(
+  ws: ExcelJS.Worksheet,
+  m: ModelData,
+  year: number,
+  month: number
+): void {
+  const rate = m.hourly_rate ?? 0;
+  const totalPay = m.records.reduce((s, r) => s + Math.round(r.hours * rate), 0);
+  let totalFittings = 0;
+
+  // 행 1: 제목
+  ws.getCell("A1").value = `${year}년 ${month}월 피팅 업무 확인서`;
+  ws.getCell("E1").value = m.name;
+  ws.getCell("F1").value = totalPay;
+
+  // 행 3~4: 헤더 (템플릿 복사 후 재설정)
+  ws.getCell("A3").value = "근무 일자";
+  ws.getCell("B3").value = "소요 시간";
+  ws.getCell("C3").value = "착장 수";
+  ws.getCell("D3").value = "일별 금액\n(세금 3.3% 포함)";
+  ws.getCell("E3").value = "서명";
+  ws.getCell("B4").value = "(시간)";
+  ws.getCell("C4").value = "(벌)";
+  ws.getCell("E4").value = "근무자";
+  ws.getCell("F4").value = "담당자";
+
+  // 행 5~27: 기존 데이터 초기화 후 새 데이터 입력
+  for (let r = 5; r <= 27; r++) {
+    for (let col = 1; col <= 6; col++) {
+      ws.getCell(r, col).value = null;
+    }
+  }
+
+  let dataRow = 5;
+  for (const rec of m.records) {
+    const fittings = Math.round(rec.hours * FITTINGS_PER_HOUR);
+    const amount = Math.round(rec.hours * rate);
+    totalFittings += fittings;
+
+    ws.getCell(dataRow, 1).value = new Date(`${rec.date}T00:00:00`);
+    ws.getCell(dataRow, 1).numFmt = "m/d";
+    ws.getCell(dataRow, 2).value = rec.hours;
+    ws.getCell(dataRow, 3).value = fittings;
+    ws.getCell(dataRow, 4).value = amount;
+    ws.getCell(dataRow, 5).value = m.name;
+    ws.getCell(dataRow, 6).value = "강기쁨";
+    dataRow++;
+  }
+
+  // 행 28~30: 합계
+  ws.getCell("A28").value = "근무 일자 합계";
+  ws.getCell("C28").value = m.records.length;
+  ws.getCell("D28").value = "일";
+  ws.getCell("E28").value = m.name;
+  ws.getCell("F28").value = "강기쁨";
+
+  ws.getCell("A29").value = "착장 수 합계";
+  ws.getCell("C29").value = totalFittings;
+  ws.getCell("D29").value = "벌";
+
+  ws.getCell("A30").value = "지급 금액 합계";
+  ws.getCell("C30").value = totalPay;
+  ws.getCell("D30").value = "원";
+}
+
+export async function generateFittingExcelBuffer(data: ExportData): Promise<Buffer> {
   const { year, month, models } = data;
-  const wb = XLSX.utils.book_new();
+
+  // 템플릿 로드 (base64 내장)
+  const tmplWb = new ExcelJS.Workbook();
+  await tmplWb.xlsx.load(Buffer.from(TEMPLATE_B64, "base64") as never);
+  const tmplSheet = tmplWb.worksheets[0];
+
+  const wb = new ExcelJS.Workbook();
 
   // 합계 시트
-  const sumRows: (string | number)[][] = [
-    [`${year}년 ${month}월 피팅 업무 확인서 - 합계`],
-    [],
-    ["사업부", "분류", "모델", "근무일수", "착장수", "급여(원)", "시급(원)"],
-  ];
+  const wsSummary = wb.addWorksheet("합계");
+  wsSummary.getColumn(1).width = 13.5;
+  wsSummary.getColumn(3).width = 11.75;
+  wsSummary.getColumn(4).width = 10.875;
+  wsSummary.getColumn(6).width = 15.625;
+  wsSummary.getColumn(7).width = 20.625;
+  wsSummary.getRow(10).values = ["사업부", "분류", "모델", "근무일 수", "착장 수", "급여", "비고"];
 
+  let sumRow = 11;
   const dept = "DISCOVERY\nQM팀";
   let prevGender = "";
-
   for (const m of models) {
     const rate = m.hourly_rate ?? 0;
-    const workDays = m.records.length;
-    const totalFit = m.records.reduce((a, r) => a + Math.round(r.hours * 10), 0);
-    const totalAmt = m.records.reduce((a, r) => a + Math.round(r.hours * rate), 0);
-    // 분류는 gender 미보유이므로 일단 "-"
-    const gender = "-";
-    const showDept = sumRows.length === 3 ? dept : "";
-    const showGender = gender !== prevGender ? gender : "";
-    prevGender = gender;
-    sumRows.push([showDept, showGender, m.name, workDays, totalFit, totalAmt, rate]);
+    wsSummary.getRow(sumRow).values = [
+      sumRow === 11 ? dept : "",
+      "-" !== prevGender ? "-" : "",
+      m.name,
+      m.records.length,
+      m.records.reduce((s, r) => s + Math.round(r.hours * FITTINGS_PER_HOUR), 0),
+      m.records.reduce((s, r) => s + Math.round(r.hours * rate), 0),
+      "",
+    ];
+    prevGender = "-";
+    sumRow++;
   }
-
-  const wsSummary = XLSX.utils.aoa_to_sheet(sumRows);
-  XLSX.utils.book_append_sheet(wb, wsSummary, "합계");
 
   // 표 시트
-  const pyo: (string | number)[][] = [
-    [],
-    [],
-    [],
-    ["", "사업부", "분류", "모델", "근무일수", "착장수", "급여(원)", "시급(원)"],
-  ];
+  const wsTable = wb.addWorksheet("표");
+  wsTable.getColumn(2).width = 13.5;
+  wsTable.getColumn(4).width = 10.875;
+  wsTable.getColumn(6).width = 15.625;
+  wsTable.getColumn(7).width = 15.0;
+  wsTable.getRow(4).values = ["", "사업부", "분류", "모델", "근무일 수", "착장 수", "급여", "비고"];
+
+  let tableRow = 5;
   for (const m of models) {
     const rate = m.hourly_rate ?? 0;
-    const workDays = m.records.length;
-    const totalFit = m.records.reduce((a, r) => a + Math.round(r.hours * 10), 0);
-    const totalAmt = m.records.reduce((a, r) => a + Math.round(r.hours * rate), 0);
-    pyo.push(["", dept, "-", m.name, workDays, totalFit, totalAmt, rate]);
+    wsTable.getRow(tableRow).values = [
+      "", dept, "-", m.name,
+      m.records.length,
+      m.records.reduce((s, r) => s + Math.round(r.hours * FITTINGS_PER_HOUR), 0),
+      m.records.reduce((s, r) => s + Math.round(r.hours * rate), 0),
+      "",
+    ];
+    tableRow++;
   }
-  const wsPyo = XLSX.utils.aoa_to_sheet(pyo);
-  XLSX.utils.book_append_sheet(wb, wsPyo, "표");
 
-  // 모델별 시트
+  // 모델별 시트: 템플릿 복사 후 값 채우기
   for (const m of models) {
-    const rate = m.hourly_rate ?? 0;
-    const sheetData: (string | number)[][] = [
-      // Row 1: 제목 행
-      [`${year}년 ${month}월 피팅 업무 확인서`, "", "", "", m.name, "", "", "", `시급 ${rate.toLocaleString("ko-KR")}원`],
-      // Row 2: 빈 행
-      [],
-      // Row 3: 헤더
-      ["근무 일자", "소요 시간", "착장 수", "일별 금액(세금 3.3% 포함)", "서명"],
-      // Row 4: 단위
-      ["", "(시간)", "(벌)", "", "근무자", "담당자"],
-    ];
-
-    let totalFit = 0;
-    let totalAmt = 0;
-
-    for (const rec of m.records) {
-      const fittings = Math.round(rec.hours * 10);
-      const amount = Math.round(rec.hours * rate);
-      totalFit += fittings;
-      totalAmt += amount;
-      sheetData.push([
-        fmtDate(month, rec.day),
-        rec.hours,
-        fittings,
-        amount,
-        m.name,
-        "",
-      ]);
-    }
-
-    // 빈 행 (합계 행과 구분)
-    sheetData.push([]);
-
-    // 합계 행
-    sheetData.push(["근무 일자 합계", "", m.records.length, "일", m.name, ""]);
-    sheetData.push(["착장 수 합계", "", totalFit, "벌"]);
-    sheetData.push(["지급 금액 합계", "", totalAmt, "원"]);
-
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    // 열 너비 설정
-    ws["!cols"] = [
-      { wch: 12 }, // A 근무일자
-      { wch: 12 }, // B 시간
-      { wch: 10 }, // C 착장수
-      { wch: 22 }, // D 금액
-      { wch: 12 }, // E 서명
-      { wch: 12 }, // F 담당자
-    ];
-
-    // 시트명은 모델명 (Excel 시트명 31자 제한, 특수문자 불가)
-    const sheetName = m.name.slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const ws = wb.addWorksheet(m.name.slice(0, 31));
+    await cloneTemplateSheet(tmplSheet, ws);
+    fillModelData(ws, m, year, month);
   }
 
-  const fileName = `${year}년 ${month}월 피팅업무확인서_월말정산.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  const buffer = await wb.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }

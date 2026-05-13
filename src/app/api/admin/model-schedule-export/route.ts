@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { generateFittingExcelBuffer } from "@/lib/generateFittingExcel";
 
 function calcHours(start: string, end: string): number {
   const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -10,6 +11,7 @@ function calcHours(start: string, end: string): number {
 }
 
 export async function GET(req: NextRequest) {
+  console.log("[EXPORT] route handler called - NEW VERSION with exceljs");
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -65,12 +67,29 @@ export async function GET(req: NextRequest) {
       modelMap.get(name)!.records.push({ date: s.date, day, hours });
     }
 
-    return NextResponse.json({
+    const exportData = {
       year,
       month,
       models: Array.from(modelMap.values()),
+    };
+
+    if (exportData.models.length === 0) {
+      return NextResponse.json({ error: "해당 기간에 피팅 데이터가 없습니다." }, { status: 404 });
+    }
+
+    console.log("[EXPORT] calling generateFittingExcelBuffer, models:", exportData.models.length);
+    const buffer = await generateFittingExcelBuffer(exportData);
+    console.log("[EXPORT] buffer size:", buffer.length);
+    const fileName = `${year}년 ${month}월 피팅업무확인서_월말정산.xlsx`;
+
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      },
     });
-  } catch {
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
+  } catch (err) {
+    console.error("[EXPORT ERROR]", err);
+    return NextResponse.json({ error: "서버 오류가 발생했습니다.", detail: String(err) }, { status: 500 });
   }
 }

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import ModelTable from "@/components/admin/ModelTable";
 import { Model } from "@/types";
 import Link from "next/link";
-import { generateFittingExcel } from "@/lib/generateFittingExcel";
 
 export default function AdminModelsPage() {
   const [models, setModels] = useState<Model[]>([]);
@@ -84,22 +83,24 @@ export default function AdminModelsPage() {
     setExportError("");
 
     try {
-      const res = await fetch(
-        `/api/admin/model-schedule-export?from=${exportRange.from}&to=${exportRange.to}`
-      );
-      const data = await res.json();
+      const url = `/api/admin/model-schedule-export?from=${exportRange.from}&to=${exportRange.to}`;
+      const res = await fetch(url);
 
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         setExportError(data.error ?? "데이터 조회에 실패했습니다.");
         return;
       }
 
-      if (!data.models || data.models.length === 0) {
-        setExportError("해당 기간에 피팅 데이터가 없습니다.");
-        return;
-      }
-
-      generateFittingExcel(data);
+      const blob = await res.blob();
+      const fileName = decodeURIComponent(
+        res.headers.get("Content-Disposition")?.match(/filename\*=UTF-8''(.+)/)?.[1] ?? "피팅업무확인서.xlsx"
+      );
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
 
       setShowExportModal(false);
       setExportRange({ from: "", to: "" });
